@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D4ED8">
+<title>สแกนเอกสาร</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai+Looped:wght@400;500;700&family=Noto+Sans+Lao+Looped:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<style>
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#16212C; --muted:#5B6875; --line:#D5DBE2;
+  --accent:#1D4ED8; --accent-ink:#FFFFFF; --ok:#0F8A5F; --warn:#B45309; --err:#B42318;
+  --soft:#E3E9F2;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161D; --surface:#18212B; --ink:#E6ECF2; --muted:#93A1AF; --line:#2B3744;
+    --accent:#6C93FF; --accent-ink:#0B1220; --ok:#3DD6A0; --warn:#F5B453; --err:#FF8B7D; --soft:#1F2B38;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161D; --surface:#18212B; --ink:#E6ECF2; --muted:#93A1AF; --line:#2B3744;
+  --accent:#6C93FF; --accent-ink:#0B1220; --ok:#3DD6A0; --warn:#F5B453; --err:#FF8B7D; --soft:#1F2B38;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.6 "Noto Sans Thai Looped","Noto Sans Lao Looped","Noto Sans Thai","Noto Sans Lao",system-ui,sans-serif;
+  -webkit-text-size-adjust:100%}
+main{max-width:720px;margin:0 auto;padding:16px 14px 64px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+h1{font-size:1.35rem;margin:4px 0 2px;font-weight:700}
+.sub{color:var(--muted);margin:0 0 14px;font-size:.92rem}
+section{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+h2{font-size:1rem;margin:0 0 10px;font-weight:700}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  padding:9px 14px;border-radius:10px;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+button:hover,.btn:hover{background:var(--soft)}
+button.primary,.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+button.primary:hover,.btn.primary:hover{filter:brightness(1.08)}
+button:disabled{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input[type=file]{display:none}
+.check{display:flex;align-items:center;gap:8px;font-size:.92rem;margin-top:10px;min-height:32px}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.strip{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;margin-top:10px}
+.thumb{flex:0 0 auto;width:84px;border:2px solid var(--line);border-radius:10px;background:var(--soft);padding:0;overflow:hidden;position:relative;min-height:0;display:block}
+.thumb img{display:block;width:100%;height:110px;object-fit:cover}
+.thumb[aria-current=true]{border-color:var(--accent)}
+.thumb .n{position:absolute;left:4px;top:4px;background:var(--ink);color:var(--bg);border-radius:6px;font-size:.75rem;padding:0 6px;line-height:1.5}
+.thumb .st{position:absolute;right:4px;bottom:4px;width:12px;height:12px;border-radius:50%;background:var(--line);border:2px solid var(--surface)}
+.thumb .st.done{background:var(--ok)} .thumb .st.busy{background:var(--warn)} .thumb .st.fail{background:var(--err)}
+.empty{color:var(--muted);text-align:center;padding:26px 8px;border:2px dashed var(--line);border-radius:12px}
+#stageWrap{background:var(--soft);border-radius:10px;padding:8px;display:flex;justify-content:center}
+#stage{position:relative;max-width:100%;overflow:hidden;touch-action:none;line-height:0}
+#stage canvas{display:block;max-width:100%;max-height:62vh;width:auto;height:auto}
+#crop{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 9999px rgba(10,16,24,.5);cursor:move;touch-action:none}
+#crop .h{position:absolute;width:26px;height:26px;background:var(--accent);border:3px solid #fff;border-radius:50%;touch-action:none}
+.h[data-h=nw]{left:-14px;top:-14px;cursor:nwse-resize}.h[data-h=ne]{right:-14px;top:-14px;cursor:nesw-resize}
+.h[data-h=sw]{left:-14px;bottom:-14px;cursor:nesw-resize}.h[data-h=se]{right:-14px;bottom:-14px;cursor:nwse-resize}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(min-width:560px){.tools{grid-template-columns:repeat(3,1fr)}}
+.f{display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:var(--muted)}
+.f .lab{display:flex;justify-content:space-between;gap:6px}
+.f output{color:var(--ink);font-variant-numeric:tabular-nums}
+select,input[type=range],textarea{font:inherit;color:var(--ink)}
+select{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px;min-height:44px}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:32px}
+textarea{width:100%;min-height:220px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical;line-height:1.7}
+.note{font-size:.88rem;color:var(--muted)}
+.status{font-size:.9rem;margin:8px 0 0;min-height:1.4em}
+.status.err{color:var(--err)} .status.ok{color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:.94rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{width:38%;color:var(--muted);font-weight:500}
+td[contenteditable]{background:var(--soft);border-radius:6px}
+.banner{background:var(--soft);border-left:4px solid var(--warn);padding:10px 12px;border-radius:8px;font-size:.9rem;margin-bottom:12px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1 data-i18n="title">สแกนเอกสาร</h1>
+      <p class="sub" data-i18n="subtitle"></p>
+    </div>
+    <select id="uiLang" data-i18n-aria="uiLang" style="min-width:108px">
+      <option value="th">ไทย</option>
+      <option value="lo">ລາວ</option>
+      <option value="en">English</option>
+    </select>
+  </header>
+
+  <div id="ocrBanner" class="banner" data-i18n="banner" hidden></div>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add" data-i18n="s1"></h2>
+    <div class="row">
+      <label class="btn primary" for="camIn" data-i18n="cam"></label>
+      <label class="btn" for="fileIn" data-i18n="pick"></label>
+    </div>
+    <input id="camIn" type="file" accept="image/*" capture="environment">
+    <input id="fileIn" type="file" accept="image/*" multiple>
+    <label class="check"><input id="autoOn" type="checkbox" checked><span data-i18n="autoOn"></span></label>
+    <div id="strip" class="strip" role="list"></div>
+    <div id="empty" class="empty" data-i18n="empty"></div>
+  </section>
+
+  <section id="editor" aria-labelledby="h-edit" hidden>
+    <h2 id="h-edit" data-i18n="s2"></h2>
+    <div class="row" style="margin-bottom:10px">
+      <button id="autoBtn" class="primary" data-i18n="autoBtn"></button>
+      <button id="autoAllBtn" data-i18n="autoAllBtn"></button>
+    </div>
+    <p id="editStatus" class="status" role="status" aria-live="polite" style="margin:0 0 8px"></p>
+    <div id="stageWrap"><div id="stage"><canvas id="cv"></canvas>
+      <div id="crop" hidden>
+        <div class="h" data-h="nw"></div><div class="h" data-h="ne"></div>
+        <div class="h" data-h="sw"></div><div class="h" data-h="se"></div>
+      </div></div></div>
+    <p class="note" style="margin:8px 0 0" data-i18n="cropHint"></p>
+    <div class="tools">
+      <label class="f"><span class="lab" data-i18n="fMode"></span>
+        <select id="filter">
+          <option value="doc" data-i18n="fDoc"></option>
+          <option value="gray" data-i18n="fGray"></option>
+          <option value="orig" data-i18n="fOrig"></option>
+        </select>
+      </label>
+      <label class="f"><span class="lab"><span data-i18n="bri"></span><output id="briV"></output></span><input id="bri" type="range" min="-50" max="50" value="0"></label>
+      <label class="f"><span class="lab"><span data-i18n="con"></span><output id="conV"></output></span><input id="con" type="range" min="80" max="220" value="130"></label>
+      <label class="f"><span class="lab"><span data-i18n="sharp"></span><output id="sharpV"></output></span><input id="sharp" type="range" min="0" max="100" value="35"></label>
+      <label class="f"><span class="lab"><span data-i18n="tilt"></span><output id="tiltV"></output></span><input id="tilt" type="range" min="-15" max="15" step="0.1" value="0"></label>
+      <div class="f"><span class="lab" data-i18n="rotate"></span>
+        <div class="row"><button id="rotL" data-i18n="rotL"></button><button id="rotR" data-i18n="rotR"></button></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="previewBtn"></button>
+      <button id="delBtn" data-i18n="del"></button>
+      <button id="leftBtn" data-i18n="left"></button>
+      <button id="rightBtn" data-i18n="right"></button>
+    </div>
+  </section>
+
+  <section id="ocrSec" aria-labelledby="h-ocr" hidden>
+    <h2 id="h-ocr" data-i18n="s3"></h2>
+    <label class="f" for="lang" style="max-width:320px;margin-bottom:10px"><span class="lab" data-i18n="ocrLang"></span>
+      <select id="lang">
+        <option value="tha+eng" data-i18n="lTha"></option>
+        <option value="lao+eng" data-i18n="lLao"></option>
+        <option value="tha+lao+eng" data-i18n="lThaLao"></option>
+        <option value="eng" data-i18n="lEng"></option>
+      </select>
+    </label>
+    <div class="row">
+      <button id="ocrOne" class="primary" data-i18n="ocrOne"></button>
+      <button id="ocrAll" data-i18n="ocrAll"></button>
+      <button id="stopBtn" data-i18n="stop" hidden></button>
+    </div>
+    <p id="ocrStatus" class="status" role="status" aria-live="polite"></p>
+    <label class="f" for="txt" style="margin-top:8px"><span class="lab" data-i18n="txtLabel"></span></label>
+    <textarea id="txt" spellcheck="false" data-i18n-ph="txtPh"></textarea>
+    <p class="note" data-i18n="ocrNote"></p>
+    <div class="row" style="margin-top:8px">
+      <button id="copyBtn" data-i18n="copy"></button>
+      <button id="txtBtn" data-i18n="saveTxt"></button>
+    </div>
+  </section>
+
+  <section id="fieldSec" aria-labelledby="h-fld" hidden>
+    <h2 id="h-fld" data-i18n="s4"></h2>
+    <p class="note" style="margin-top:0" data-i18n="s4note"></p>
+    <div class="row"><button id="fieldBtn" data-i18n="fieldBtn"></button></div>
+    <p id="fieldStatus" class="status" role="status" aria-live="polite"></p>
+    <div id="fieldOut" hidden>
+      <table><tbody id="fieldRows"></tbody></table>
+      <div class="row" style="margin-top:10px"><button id="csvBtn" data-i18n="saveCsv"></button></div>
+    </div>
+  </section>
+
+  <section id="pdfSec" aria-labelledby="h-pdf" hidden>
+    <h2 id="h-pdf" data-i18n="s5"></h2>
+    <div class="row"><button id="pdfBtn" class="primary" data-i18n="pdfBtn"></button></div>
+    <p id="pdfStatus" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <p class="note" data-i18n="privacy"></p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  // =====================================================================
+  //  i18n  (th / lo / en)
+  // =====================================================================
+  const I18N = {
+    th: {
+      title:"สแกนเอกสาร", subtitle:"ถ่ายหรืออัปโหลดเอกสาร จัดหน้าอัตโนมัติ ปรับให้คมชัด อ่านเป็นข้อความ แล้วบันทึกเป็น PDF",
+      uiLang:"ภาษาของแอพ", banner:"โหลดตัวอ่านข้อความ (Tesseract) ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วเปิดหน้านี้ใหม่ ส่วนสแกนและ PDF ยังใช้ได้",
+      s1:"1. เพิ่มหน้าเอกสาร", cam:"ถ่ายรูป", pick:"เลือกรูปจากเครื่อง", autoOn:"จัดหน้าอัตโนมัติเมื่อเพิ่มรูป (แก้ความเอียง + ตัดขอบ)",
+      empty:"ยังไม่มีหน้าเอกสาร ถ่ายรูปหรือเลือกรูปเพื่อเริ่ม", pageN:"หน้า {n}",
+      s2:"2. จัดหน้า ตัดขอบ และปรับภาพ", autoBtn:"จัดหน้าอัตโนมัติ (หน้านี้)", autoAllBtn:"จัดทุกหน้า",
+      cropHint:"ลากจุดมุมเพื่อกำหนดขอบเอกสาร หรือลากกรอบเพื่อเลื่อน ตัวอย่างความคมชัดและโหมดภาพจะเห็นในปุ่ม “ดูตัวอย่างผลลัพธ์”",
+      fMode:"โหมดภาพ", fDoc:"เอกสารขาวดำ (สะอาด)", fGray:"โทนเทา", fOrig:"สีต้นฉบับ",
+      bri:"ความสว่าง", con:"คอนทราสต์", sharp:"ความคมชัด", tilt:"ปรับความเอียง", rotate:"หมุนภาพ", rotL:"↺ ซ้าย", rotR:"ขวา ↻",
+      prevOn:"ดูตัวอย่างผลลัพธ์", prevOff:"กลับไปตัดขอบ", del:"ลบหน้านี้", left:"เลื่อนไปก่อน", right:"เลื่อนไปหลัง",
+      autoWorking:"กำลังจัดหน้า…",
+      autoBoth:"จัดหน้าแล้ว: แก้ความเอียง {a}° และตัดขอบ ตรวจดูตัวอย่างอีกครั้ง",
+      autoAngleOnly:"แก้ความเอียง {a}° แต่ไม่พบขอบเอกสารชัดเจน ลองลากกรอบเอง",
+      autoCropOnly:"ตัดขอบแล้ว ไม่พบความเอียงที่ชัดเจน",
+      autoNone:"ไม่พบขอบหรือความเอียงที่ชัดเจน ลองลากกรอบเอง หรือถ่ายให้เอกสารวางบนพื้นหลังที่สีต่างกัน",
+      autoAllDone:"จัดหน้าแล้ว {n} หน้า ตรวจแต่ละหน้าอีกครั้ง",
+      s3:"3. อ่านข้อความ", ocrLang:"ภาษาในเอกสาร", lTha:"ไทย + อังกฤษ", lLao:"ลาว + อังกฤษ", lThaLao:"ไทย + ลาว + อังกฤษ", lEng:"อังกฤษ",
+      ocrOne:"อ่านหน้านี้", ocrAll:"อ่านทุกหน้า", stop:"หยุด",
+      txtLabel:"ข้อความที่อ่านได้ (แก้ไขได้)", txtPh:"ข้อความจะแสดงที่นี่",
+      ocrNote:"ความแม่นยำขึ้นกับคุณภาพภาพ ภาษาลาวและตัวหนังสือเล็กอาจผิดได้ ควรตรวจกับต้นฉบับทุกครั้ง โดยเฉพาะตัวเลข ชื่อ และยอดเงิน",
+      copy:"คัดลอกข้อความ", saveTxt:"บันทึกเป็น .txt",
+      loadingLang:"กำลังโหลดข้อมูลภาษา (ครั้งแรกอาจใช้เวลาสักครู่)", reading:"กำลังอ่าน",
+      readDone:"อ่านเสร็จแล้ว กรุณาตรวจทานกับต้นฉบับ", stopped:"หยุดแล้ว",
+      readFail:"อ่านไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต (ต้องโหลดข้อมูลภาษาครั้งแรก) แล้วลองใหม่",
+      noTextYet:"ยังไม่มีข้อความ กรุณากด “อ่านหน้านี้” ก่อน", noTextSave:"ยังไม่มีข้อความให้บันทึก", noTextFound:"(ไม่พบข้อความ)",
+      copied:"คัดลอกแล้ว", copyFail:"คัดลอกไม่ได้ กดค้างที่ข้อความเพื่อเลือกคัดลอกเอง",
+      s4:"4. ค้นหาวันที่ เบอร์โทร และจำนวนเงิน", s4note:"ค้นจากรูปแบบตัวเลขในข้อความ ไม่ได้เข้าใจเนื้อหา จึงอาจตกหล่นหรือเกินมา",
+      fieldBtn:"ค้นจากข้อความทุกหน้า", found:"พบ {n} รายการ แตะที่ค่าเพื่อแก้ไขได้", notFound:"ไม่พบข้อมูลตามรูปแบบที่ค้น",
+      fDate:"วันที่", fPhone:"เบอร์โทร", fAmount:"จำนวนเงิน", fDocNo:"เลขที่เอกสาร", colType:"ประเภท", colValue:"ค่า", saveCsv:"บันทึกเป็น .csv",
+      s5:"5. บันทึกเป็น PDF", pdfBtn:"สร้าง PDF ทุกหน้า", pdfBuilding:"กำลังสร้าง PDF…",
+      pdfFail:"สร้าง PDF ไม่สำเร็จ ลองลดจำนวนหน้าแล้วทำใหม่", pdfLib:"โหลดตัวสร้าง PDF ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วเปิดหน้านี้ใหม่",
+      saved:"บันทึกแล้ว: {f}", saveFail:"บันทึกไฟล์ไม่สำเร็จ ลองใหม่อีกครั้ง",
+      privacy:"ภาพและข้อความประมวลผลในเครื่องของคุณเท่านั้น ไม่ถูกส่งไปเซิร์ฟเวอร์ใด (ครั้งแรกต้องโหลดข้อมูลภาษาจากอินเทอร์เน็ต)"
+    },
+    lo: {
+      title:"ສະແກນເອກະສານ", subtitle:"ຖ່າຍ ຫຼື ອັບໂຫຼດເອກະສານ ຈັດໜ້າອັດຕະໂນມັດ ປັບໃຫ້ຄົມຊັດ ອ່ານເປັນຂໍ້ຄວາມ ແລ້ວບັນທຶກເປັນ PDF",
+      uiLang:"ພາສາຂອງແອັບ", banner:"ໂຫຼດຕົວອ່ານຂໍ້ຄວາມ (Tesseract) ບໍ່ສຳເລັດ ກວດສອບອິນເຕີເນັດແລ້ວເປີດໜ້ານີ້ໃໝ່ ສ່ວນສະແກນ ແລະ PDF ຍັງໃຊ້ໄດ້",
+      s1:"1. ເພີ່ມໜ້າເອກະສານ", cam:"ຖ່າຍຮູບ", pick:"ເລືອກຮູບຈາກເຄື່ອງ", autoOn:"ຈັດໜ້າອັດຕະໂນມັດເມື່ອເພີ່ມຮູບ (ແກ້ຄວາມອຽງ + ຕັດຂອບ)",
+      empty:"ຍັງບໍ່ມີໜ້າເອກະສານ ຖ່າຍຮູບ ຫຼື ເລືອກຮູບເພື່ອເລີ່ມ", pageN:"ໜ້າ {n}",
+      s2:"2. ຈັດໜ້າ ຕັດຂອບ ແລະ ປັບຮູບ", autoBtn:"ຈັດໜ້າອັດຕະໂນມັດ (ໜ້ານີ້)", autoAllBtn:"ຈັດທຸກໜ້າ",
+      cropHint:"ລາກຈຸດມຸມເພື່ອກຳນົດຂອບເອກະສານ ຫຼື ລາກກອບເພື່ອເລື່ອນ ຕົວຢ່າງຄວາມຄົມຊັດ ແລະ ໂໝດຮູບຈະເຫັນໃນປຸ່ມ “ເບິ່ງຕົວຢ່າງຜົນລັບ”",
+      fMode:"ໂໝດຮູບ", fDoc:"ເອກະສານຂາວດຳ (ສະອາດ)", fGray:"ໂທນສີເທົາ", fOrig:"ສີຕົ້ນສະບັບ",
+      bri:"ຄວາມສະຫວ່າງ", con:"ຄອນຕຣາສ", sharp:"ຄວາມຄົມຊັດ", tilt:"ປັບຄວາມອຽງ", rotate:"ໝຸນຮູບ", rotL:"↺ ຊ້າຍ", rotR:"ຂວາ ↻",
+      prevOn:"ເບິ່ງຕົວຢ່າງຜົນລັບ", prevOff:"ກັບໄປຕັດຂອບ", del:"ລຶບໜ້ານີ້", left:"ເລື່ອນໄປກ່ອນ", right:"ເລື່ອນໄປຫຼັງ",
+      autoWorking:"ກຳລັງຈັດໜ້າ…",
+      autoBoth:"ຈັດໜ້າແລ້ວ: ແກ້ຄວາມອຽງ {a}° ແລະ ຕັດຂອບ ກວດເບິ່ງຕົວຢ່າງອີກຄັ້ງ",
+      autoAngleOnly:"ແກ້ຄວາມອຽງ {a}° ແຕ່ບໍ່ພົບຂອບເອກະສານຊັດເຈນ ລອງລາກກອບເອງ",
+      autoCropOnly:"ຕັດຂອບແລ້ວ ບໍ່ພົບຄວາມອຽງທີ່ຊັດເຈນ",
+      autoNone:"ບໍ່ພົບຂອບ ຫຼື ຄວາມອຽງທີ່ຊັດເຈນ ລອງລາກກອບເອງ ຫຼື ຖ່າຍໃຫ້ເອກະສານວາງຢູ່ເທິງພື້ນຫຼັງທີ່ສີຕ່າງກັນ",
+      autoAllDone:"ຈັດໜ້າແລ້ວ {n} ໜ້າ ກວດແຕ່ລະໜ້າອີກຄັ້ງ",
+      s3:"3. ອ່ານຂໍ້ຄວາມ", ocrLang:"ພາສາໃນເອກະສານ", lTha:"ໄທ + ອັງກິດ", lLao:"ລາວ + ອັງກິດ", lThaLao:"ໄທ + ລາວ + ອັງກິດ", lEng:"ອັງກິດ",
+      ocrOne:"ອ່ານໜ້ານີ້", ocrAll:"ອ່ານທຸກໜ້າ", stop:"ຢຸດ",
+      txtLabel:"ຂໍ້ຄວາມທີ່ອ່ານໄດ້ (ແກ້ໄຂໄດ້)", txtPh:"ຂໍ້ຄວາມຈະສະແດງຢູ່ບ່ອນນີ້",
+      ocrNote:"ຄວາມຖືກຕ້ອງຂຶ້ນກັບຄຸນນະພາບຮູບ ພາສາລາວ ແລະ ຕົວໜັງສືນ້ອຍອາດຜິດໄດ້ ຄວນກວດກັບຕົ້ນສະບັບສະເໝີ ໂດຍສະເພາະຕົວເລກ ຊື່ ແລະ ຍອດເງິນ",
+      copy:"ສຳເນົາຂໍ້ຄວາມ", saveTxt:"ບັນທຶກເປັນ .txt",
+      loadingLang:"ກຳລັງໂຫຼດຂໍ້ມູນພາສາ (ຄັ້ງທຳອິດອາດໃຊ້ເວລາໜ້ອຍໜຶ່ງ)", reading:"ກຳລັງອ່ານ",
+      readDone:"ອ່ານແລ້ວ ກະລຸນາກວດກັບຕົ້ນສະບັບ", stopped:"ຢຸດແລ້ວ",
+      readFail:"ອ່ານບໍ່ສຳເລັດ ກວດສອບອິນເຕີເນັດ (ຕ້ອງໂຫຼດຂໍ້ມູນພາສາຄັ້ງທຳອິດ) ແລ້ວລອງໃໝ່",
+      noTextYet:"ຍັງບໍ່ມີຂໍ້ຄວາມ ກະລຸນາກົດ “ອ່ານໜ້ານີ້” ກ່ອນ", noTextSave:"ຍັງບໍ່ມີຂໍ້ຄວາມໃຫ້ບັນທຶກ", noTextFound:"(ບໍ່ພົບຂໍ້ຄວາມ)",
+      copied:"ສຳເນົາແລ້ວ", copyFail:"ສຳເນົາບໍ່ໄດ້ ກົດຄ້າງທີ່ຂໍ້ຄວາມເພື່ອເລືອກສຳເນົາເອງ",
+      s4:"4. ຄົ້ນຫາວັນທີ ເບີໂທ ແລະ ຈຳນວນເງິນ", s4note:"ຄົ້ນຈາກຮູບແບບຕົວເລກໃນຂໍ້ຄວາມ ບໍ່ໄດ້ເຂົ້າໃຈເນື້ອໃນ ຈຶ່ງອາດຕົກຫຼ່ນ ຫຼື ເກີນມາ",
+      fieldBtn:"ຄົ້ນຈາກຂໍ້ຄວາມທຸກໜ້າ", found:"ພົບ {n} ລາຍການ ແຕະທີ່ຄ່າເພື່ອແກ້ໄຂໄດ້", notFound:"ບໍ່ພົບຂໍ້ມູນຕາມຮູບແບບທີ່ຄົ້ນ",
+      fDate:"ວັນທີ", fPhone:"ເບີໂທ", fAmount:"ຈຳນວນເງິນ", fDocNo:"ເລກທີເອກະສານ", colType:"ປະເພດ", colValue:"ຄ່າ", saveCsv:"ບັນທຶກເປັນ .csv",
+      s5:"5. ບັນທຶກເປັນ PDF", pdfBtn:"ສ້າງ PDF ທຸກໜ້າ", pdfBuilding:"ກຳລັງສ້າງ PDF…",
+      pdfFail:"ສ້າງ PDF ບໍ່ສຳເລັດ ລອງຫຼຸດຈຳນວນໜ້າແລ້ວເຮັດໃໝ່", pdfLib:"ໂຫຼດຕົວສ້າງ PDF ບໍ່ສຳເລັດ ກວດສອບອິນເຕີເນັດແລ້ວເປີດໜ້ານີ້ໃໝ່",
+      saved:"ບັນທຶກແລ້ວ: {f}", saveFail:"ບັນທຶກໄຟລ໌ບໍ່ສຳເລັດ ລອງໃໝ່ອີກຄັ້ງ",
+      privacy:"ຮູບ ແລະ ຂໍ້ຄວາມປະມວນຜົນໃນເຄື່ອງຂອງທ່ານເທົ່ານັ້ນ ບໍ່ຖືກສົ່ງໄປເຊີບເວີໃດ (ຄັ້ງທຳອິດຕ້ອງໂຫຼດຂໍ້ມູນພາສາຈາກອິນເຕີເນັດ)"
+    },
+    en: {
+      title:"Document Scanner", subtitle:"Take or upload a document, auto-straighten it, sharpen it, read the text and save it as a PDF",
+      uiLang:"App language", banner:"Could not load the text reader (Tesseract). Check your internet connection and reload. Scanning and PDF still work.",
+      s1:"1. Add pages", cam:"Take photo", pick:"Choose images", autoOn:"Auto-layout when adding images (straighten + crop)",
+      empty:"No pages yet. Take a photo or choose images to start.", pageN:"Page {n}",
+      s2:"2. Layout, crop and adjust", autoBtn:"Auto-layout (this page)", autoAllBtn:"Auto-layout all pages",
+      cropHint:"Drag the corner handles to set the document edges, or drag the frame to move it. Use “Preview result” to see sharpness and image mode.",
+      fMode:"Image mode", fDoc:"Clean black & white", fGray:"Grayscale", fOrig:"Original color",
+      bri:"Brightness", con:"Contrast", sharp:"Sharpness", tilt:"Straighten", rotate:"Rotate", rotL:"↺ Left", rotR:"Right ↻",
+      prevOn:"Preview result", prevOff:"Back to crop", del:"Delete page", left:"Move earlier", right:"Move later",
+      autoWorking:"Laying out…",
+      autoBoth:"Done: straightened by {a}° and cropped. Check the preview.",
+      autoAngleOnly:"Straightened by {a}°, but no clear document edge was found. Drag the frame yourself.",
+      autoCropOnly:"Cropped. No clear tilt was found.",
+      autoNone:"No clear edge or tilt found. Drag the frame yourself, or photograph the document on a contrasting background.",
+      autoAllDone:"Auto-layout done for {n} pages. Check each page.",
+      s3:"3. Read text", ocrLang:"Document language", lTha:"Thai + English", lLao:"Lao + English", lThaLao:"Thai + Lao + English", lEng:"English",
+      ocrOne:"Read this page", ocrAll:"Read all pages", stop:"Stop",
+      txtLabel:"Recognized text (editable)", txtPh:"Text will appear here",
+      ocrNote:"Accuracy depends on image quality. Lao and small print can be wrong. Always check against the original, especially numbers, names and amounts.",
+      copy:"Copy text", saveTxt:"Save as .txt",
+      loadingLang:"Loading language data (may take a while the first time)", reading:"Reading",
+      readDone:"Done. Please check against the original.", stopped:"Stopped",
+      readFail:"Could not read. Check your internet connection (language data is downloaded the first time) and try again.",
+      noTextYet:"No text yet. Press “Read this page” first.", noTextSave:"No text to save yet", noTextFound:"(no text found)",
+      copied:"Copied", copyFail:"Could not copy. Press and hold the text to select and copy it yourself.",
+      s4:"4. Find dates, phone numbers and amounts", s4note:"Searches the text for number patterns. It does not understand the content, so it may miss items or show extras.",
+      fieldBtn:"Search all pages", found:"{n} items found. Tap a value to edit it.", notFound:"Nothing matched the search patterns",
+      fDate:"Date", fPhone:"Phone", fAmount:"Amount", fDocNo:"Document no.", colType:"Type", colValue:"Value", saveCsv:"Save as .csv",
+      s5:"5. Save as PDF", pdfBtn:"Create PDF of all pages", pdfBuilding:"Creating PDF…",
+      pdfFail:"Could not create the PDF. Try fewer pages.", pdfLib:"Could not load the PDF library. Check your internet connection and reload.",
+      saved:"Saved: {f}", saveFail:"Could not save the file. Try again.",
+      privacy:"Images and text are processed on your device only and are not sent to any server (language data is downloaded from the internet the first time)."
+    }
+  };
+  let ui = "th";
+  const t = (k, v) => {
+    let s = (I18N[ui] && I18N[ui][k]) ?? I18N.en[k] ?? k;
+    if (v) for (const x in v) s = s.replace("{" + x + "}", v[x]);
+    return s;
+  };
+  function applyI18n() {
+    document.documentElement.lang = ui;
+    document.title = t("title");
+    document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-ph]").forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+    document.querySelectorAll("[data-i18n-aria]").forEach(el => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+    $("previewBtn").textContent = t(previewing ? "prevOff" : "prevOn");
+    renderStrip();
+  }
+  function detectUi() {
+    try { const s = localStorage.getItem("scanner-ui"); if (I18N[s]) return s; } catch (e) {}
+    const n = (navigator.language || "").toLowerCase();
+    return n.startsWith("lo") ? "lo" : n.startsWith("th") ? "th" : "en";
+  }
+
+  // =====================================================================
+  //  Pure image algorithms (operate on gray/alpha arrays)
+  // =====================================================================
+  // >>> algo
+  function localBackground(gray, w, h, r) {
+    // box blur via integral image
+    const W = w + 1, I = new Float64Array(W * (h + 1));
+    for (let y = 0; y < h; y++) {
+      let row = 0;
+      for (let x = 0; x < w; x++) { row += gray[y * w + x]; I[(y + 1) * W + x + 1] = I[y * W + x + 1] + row; }
+    }
+    const bg = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - r), y1 = Math.min(h, y + r + 1);
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - r), x1 = Math.min(w, x + r + 1);
+        const s = I[y1 * W + x1] - I[y0 * W + x1] - I[y1 * W + x0] + I[y0 * W + x0];
+        bg[y * w + x] = s / ((x1 - x0) * (y1 - y0));
+      }
+    }
+    return bg;
+  }
+
+  // Returns the angle (degrees) to rotate the image by, clockwise on screen, so text lines become horizontal.
+  function skewAngle(gray, alpha, w, h) {
+    const bg = localBackground(gray, w, h, Math.max(6, Math.round(Math.max(w, h) / 14)));
+    const xs = [], ys = [];
+    const step = Math.max(1, Math.floor(Math.sqrt((w * h) / 40000)));
+    for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+      const i = y * w + x;
+      if (alpha[i] > 200 && bg[i] > 60 && gray[i] < bg[i] * 0.78) { xs.push(x - w / 2); ys.push(y - h / 2); }
+    }
+    if (xs.length < 200) return 0;
+    const n = xs.length, diag = Math.ceil(Math.hypot(w, h)) + 4, off = diag / 2 | 0;
+    const score = deg => {
+      const th = deg * Math.PI / 180, s = Math.sin(th), c = Math.cos(th);
+      const bins = new Int32Array(diag + 8);
+      for (let k = 0; k < n; k++) {
+        const b = Math.round(xs[k] * s + ys[k] * c) + off;
+        if (b >= 0 && b < bins.length) bins[b]++;
+      }
+      let sc = 0; for (let b = 0; b < bins.length; b++) sc += bins[b] * bins[b];
+      return sc;
+    };
+    const s0 = score(0);
+    let best = 0, bs = s0;
+    for (let a = -15; a <= 15.001; a += 0.5) { const sc = score(a); if (sc > bs) { bs = sc; best = a; } }
+    let fine = best, fs = bs;
+    for (let a = best - 0.5; a <= best + 0.5001; a += 0.1) { const sc = score(a); if (sc > fs) { fs = sc; fine = a; } }
+    if (fs < s0 * 1.03) return 0;              // not confident: leave alone
+    if (Math.abs(fine) < 0.3) return 0;
+    return Math.round(fine * 10) / 10;
+  }
+
+  function otsu(values) {
+    const hist = new Float64Array(256); let total = 0;
+    for (let i = 0; i < values.length; i++) { hist[values[i]]++; total++; }
+    let sum = 0; for (let t = 0; t < 256; t++) sum += t * hist[t];
+    let wB = 0, sB = 0, max = -1, thr = 128;
+    for (let t = 0; t < 256; t++) {
+      wB += hist[t]; if (!wB) continue;
+      const wF = total - wB; if (!wF) break;
+      sB += t * hist[t];
+      const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
+      if (v > max) { max = v; thr = t; }
+    }
+    return thr;
+  }
+
+  // Finds the document (bright region) and returns {x,y,w,h} as fractions, or null.
+  function docBox(gray, alpha, w, h) {
+    const vals = []; let valid = 0;
+    for (let i = 0; i < w * h; i++) if (alpha[i] > 200) { vals.push(gray[i]); valid++; }
+    if (valid < 100) return null;
+    const thr = otsu(Uint8Array.from(vals));
+    let mask = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) mask[i] = alpha[i] > 200 && gray[i] > thr ? 1 : 0;
+    // open (erode then dilate, 3x3) to drop speckle and thin bridges
+    const morph = (src, erode) => {
+      const out = new Uint8Array(w * h);
+      for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+        let acc = erode ? 1 : 0;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const v = src[(y + dy) * w + x + dx];
+          if (erode) acc &= v; else acc |= v;
+        }
+        out[y * w + x] = acc;
+      }
+      return out;
+    };
+    mask = morph(morph(mask, true), false);
+    // largest connected component
+    const label = new Int32Array(w * h), queue = new Int32Array(w * h);
+    let bestArea = 0, bx0 = 0, by0 = 0, bx1 = 0, by1 = 0, id = 0;
+    for (let s = 0; s < w * h; s++) {
+      if (!mask[s] || label[s]) continue;
+      id++; let head = 0, tail = 0; queue[tail++] = s; label[s] = id;
+      let area = 0, x0 = w, y0 = h, x1 = 0, y1 = 0;
+      while (head < tail) {
+        const p = queue[head++], x = p % w, y = (p / w) | 0; area++;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && mask[p - 1] && !label[p - 1]) { label[p - 1] = id; queue[tail++] = p - 1; }
+        if (x < w - 1 && mask[p + 1] && !label[p + 1]) { label[p + 1] = id; queue[tail++] = p + 1; }
+        if (y > 0 && mask[p - w] && !label[p - w]) { label[p - w] = id; queue[tail++] = p - w; }
+        if (y < h - 1 && mask[p + w] && !label[p + w]) { label[p + w] = id; queue[tail++] = p + w; }
+      }
+      if (area > bestArea) { bestArea = area; bx0 = x0; by0 = y0; bx1 = x1; by1 = y1; }
+    }
+    if (bestArea < valid * 0.12) return null;
+    // small outward margin, then pull each side in while it sits on transparent (rotation) corners
+    const m = 2;
+    let L = Math.max(0, bx0 - m), T = Math.max(0, by0 - m), R = Math.min(w - 1, bx1 + m), B = Math.min(h - 1, by1 + m);
+    const transFrac = (kind) => {
+      let cnt = 0, tot = 0;
+      if (kind === "L" || kind === "R") { const x = kind === "L" ? L : R; for (let y = T; y <= B; y++) { tot++; if (alpha[y * w + x] <= 200) cnt++; } }
+      else { const y = kind === "T" ? T : B; for (let x = L; x <= R; x++) { tot++; if (alpha[y * w + x] <= 200) cnt++; } }
+      return tot ? cnt / tot : 0;
+    };
+    for (let it = 0; it < 400 && R - L > 8 && B - T > 8; it++) {
+      const f = { L: transFrac("L"), T: transFrac("T"), R: transFrac("R"), B: transFrac("B") };
+      let k = "L"; for (const q of ["T", "R", "B"]) if (f[q] > f[k]) k = q;
+      if (f[k] < 0.02) break;
+      if (k === "L") L++; else if (k === "T") T++; else if (k === "R") R--; else B--;
+    }
+    return { x: L / w, y: T / h, w: (R - L + 1) / w, h: (B - T + 1) / h };
+  }
+  // <<< algo
+
+  // =====================================================================
+  //  State and helpers
+  // =====================================================================
+  const pages = [];
+  let cur = -1, previewing = false;
+
+  const setStatus = (el, msg, cls) => { el.textContent = msg || ""; el.className = "status" + (cls ? " " + cls : ""); };
+  const loadImg = url => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const tick = () => new Promise(r => setTimeout(r, 30));
+  const FULL = () => ({ x: 0, y: 0, w: 1, h: 1 });
+
+  function initCaps() {
+    if (!window.Tesseract) { $("ocrBanner").hidden = false; ["ocrOne", "ocrAll"].forEach(id => $(id).disabled = true); }
+  }
+
+  // ---------- pages ----------
+  async function addFiles(fileList) {
+    const files = [...fileList].filter(f => f.type.startsWith("image/"));
+    const auto = $("autoOn").checked;
+    for (const f of files) {
+      const url = URL.createObjectURL(f);
+      try {
+        const img = await loadImg(url);
+        const p = { id: Math.random().toString(36).slice(2), url, img, rot: 0, angle: 0, auto: false,
+          crop: FULL(), filter: "doc", bri: 0, con: 130, sharp: 35, text: "", state: "" };
+        pages.push(p);
+        if (auto) { setStatus($("editStatus"), t("autoWorking")); await tick(); autoLayout(p); }
+      } catch (e) { URL.revokeObjectURL(url); }
+    }
+    if (files.length) { select(pages.length - 1); if (auto) setStatus($("editStatus"), ""); }
+  }
+
+  function renderStrip() {
+    const strip = $("strip");
+    strip.textContent = "";
+    pages.forEach((p, i) => {
+      const b = document.createElement("button");
+      b.className = "thumb"; b.setAttribute("role", "listitem");
+      b.setAttribute("aria-label", t("pageN", { n: i + 1 }));
+      if (i === cur) b.setAttribute("aria-current", "true");
+      const im = document.createElement("img"); im.src = p.url; im.alt = "";
+      const n = document.createElement("span"); n.className = "n"; n.textContent = i + 1;
+      const s = document.createElement("span"); s.className = "st " + p.state;
+      b.append(im, n, s);
+      b.onclick = () => select(i);
+      strip.append(b);
+    });
+    const has = pages.length > 0;
+    $("empty").hidden = has;
+    ["editor", "ocrSec", "pdfSec", "fieldSec"].forEach(id => $(id).hidden = !has);
+  }
+
+  function syncControls() {
+    const p = pages[cur];
+    $("filter").value = p.filter;
+    $("bri").value = p.bri; $("con").value = p.con; $("sharp").value = p.sharp; $("tilt").value = p.angle;
+    $("briV").textContent = p.bri; $("conV").textContent = p.con; $("sharpV").textContent = p.sharp;
+    $("tiltV").textContent = p.angle.toFixed(1) + "°";
+  }
+
+  function select(i) {
+    if (!pages.length) { cur = -1; renderStrip(); return; }
+    cur = clamp(i, 0, pages.length - 1);
+    previewing = false; $("previewBtn").textContent = t("prevOn");
+    syncControls();
+    $("txt").value = pages[cur].text;
+    renderStrip(); drawStage();
+  }
+
+  // ---------- image pipeline ----------
+  // Rotate by p.rot*90deg + p.angle (canvas grows to hold the whole image). transparent=true leaves the corners empty.
+  function rotated(p, maxDim, transparent) {
+    const w0 = p.img.naturalWidth, h0 = p.img.naturalHeight;
+    const th = (p.rot * 90 + p.angle) * Math.PI / 180;
+    const co = Math.abs(Math.cos(th)), si = Math.abs(Math.sin(th));
+    const W = w0 * co + h0 * si, H = w0 * si + h0 * co;
+    const s = Math.min(1, maxDim / Math.max(W, H));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(W * s)); c.height = Math.max(1, Math.round(H * s));
+    const x = c.getContext("2d");
+    if (!transparent) { x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); }
+    x.translate(c.width / 2, c.height / 2);
+    x.rotate(th);
+    x.drawImage(p.img, -w0 * s / 2, -h0 * s / 2, w0 * s, h0 * s);
+    return c;
+  }
+
+  function sharpen(c, amount) {
+    if (amount <= 0) return;
+    const x = c.getContext("2d"), w = c.width, h = c.height;
+    const img = x.getImageData(0, 0, w, h), s = img.data, out = new Uint8ClampedArray(s);
+    const a = amount / 100 * 0.9, c0 = 1 + 4 * a, rs = w * 4;
+    for (let y = 1; y < h - 1; y++) {
+      let i = (y * w + 1) * 4;
+      for (let xx = 1; xx < w - 1; xx++, i += 4) {
+        for (let k = 0; k < 3; k++) {
+          const j = i + k;
+          out[j] = c0 * s[j] - a * (s[j - 4] + s[j + 4] + s[j - rs] + s[j + rs]);
+        }
+      }
+    }
+    img.data.set(out); x.putImageData(img, 0, 0);
+  }
+
+  function applyFilter(c, p) {
+    if (p.filter === "orig" && p.bri === 0 && p.con === 100) return;
+    const x = c.getContext("2d");
+    const d = x.getImageData(0, 0, c.width, c.height), a = d.data;
+    const con = p.con / 100, bri = p.bri * 2.55;
+    if (p.filter === "doc") {
+      const sm = document.createElement("canvas");
+      sm.width = Math.max(8, Math.round(c.width / 24)); sm.height = Math.max(8, Math.round(c.height / 24));
+      sm.getContext("2d").drawImage(c, 0, 0, sm.width, sm.height);
+      const bg = document.createElement("canvas"); bg.width = c.width; bg.height = c.height;
+      const bx = bg.getContext("2d"); bx.imageSmoothingQuality = "high"; bx.drawImage(sm, 0, 0, c.width, c.height);
+      const b = bx.getImageData(0, 0, c.width, c.height).data;
+      for (let i = 0; i < a.length; i += 4) {
+        const g = .299 * a[i] + .587 * a[i + 1] + .114 * a[i + 2];
+        const bgv = Math.max(40, .299 * b[i] + .587 * b[i + 1] + .114 * b[i + 2]);
+        let v = g / bgv * 255;
+        v = (v - 200) * con * 1.6 + 200 + bri;
+        v = v < 0 ? 0 : v > 255 ? 255 : v;
+        a[i] = a[i + 1] = a[i + 2] = v;
+      }
+    } else {
+      for (let i = 0; i < a.length; i += 4) {
+        for (let k = 0; k < 3; k++) {
+          let v = a[i + k];
+          if (p.filter === "gray") v = .299 * a[i] + .587 * a[i + 1] + .114 * a[i + 2];
+          v = (v - 128) * con + 128 + bri;
+          a[i + k] = v < 0 ? 0 : v > 255 ? 255 : v;
+        }
+      }
+    }
+    x.putImageData(d, 0, 0);
+  }
+
+  function output(p, maxDim) {
+    const r = rotated(p, maxDim, false);
+    const cx = Math.round(p.crop.x * r.width), cy = Math.round(p.crop.y * r.height);
+    const cw = Math.max(8, Math.round(p.crop.w * r.width)), ch = Math.max(8, Math.round(p.crop.h * r.height));
+    const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+    c.getContext("2d").drawImage(r, cx, cy, cw, ch, 0, 0, cw, ch);
+    sharpen(c, p.sharp);
+    applyFilter(c, p);
+    return c;
+  }
+
+  // ---------- auto layout ----------
+  function grayAlpha(c) {
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    const n = c.width * c.height, gray = new Uint8Array(n), alpha = new Uint8Array(n);
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      gray[i] = (.299 * d[j] + .587 * d[j + 1] + .114 * d[j + 2]) | 0; alpha[i] = d[j + 3];
+    }
+    return { gray, alpha };
+  }
+  function detectAngle(p) {
+    const c = rotated({ img: p.img, rot: p.rot, angle: 0 }, 560, true);
+    const { gray, alpha } = grayAlpha(c);
+    return skewAngle(gray, alpha, c.width, c.height);
+  }
+  function detectCrop(p) {
+    const c = rotated(p, 320, true);
+    const { gray, alpha } = grayAlpha(c);
+    return docBox(gray, alpha, c.width, c.height);
+  }
+  function autoLayout(p) {
+    p.angle = 0;
+    const a = detectAngle(p); p.angle = a;
+    const box = detectCrop(p);
+    p.crop = box || FULL(); p.auto = true;
+    return { angle: a, angled: Math.abs(a) >= 0.3, cropped: !!box && (box.w < 0.97 || box.h < 0.97) };
+  }
+  function autoMessage(r) {
+    const a = r.angle.toFixed(1);
+    if (r.angled && r.cropped) return t("autoBoth", { a });
+    if (r.angled) return t("autoAngleOnly", { a });
+    if (r.cropped) return t("autoCropOnly");
+    return t("autoNone");
+  }
+  $("autoBtn").onclick = async () => {
+    if (cur < 0) return;
+    setStatus($("editStatus"), t("autoWorking")); await tick();
+    const r = autoLayout(pages[cur]);
+    previewing = false; $("previewBtn").textContent = t("prevOn");
+    syncControls(); drawStage();
+    setStatus($("editStatus"), autoMessage(r), (r.angled || r.cropped) ? "ok" : "");
+  };
+  $("autoAllBtn").onclick = async () => {
+    if (!pages.length) return;
+    setStatus($("editStatus"), t("autoWorking")); await tick();
+    for (const p of pages) { autoLayout(p); await tick(); }
+    previewing = false; $("previewBtn").textContent = t("prevOn");
+    syncControls(); drawStage();
+    setStatus($("editStatus"), t("autoAllDone", { n: pages.length }), "ok");
+  };
+
+  // ---------- stage ----------
+  function drawStage() {
+    if (cur < 0) return;
+    const p = pages[cur], cv = $("cv");
+    const src = previewing ? output(p, 1400) : rotated(p, 1400, false);
+    cv.width = src.width; cv.height = src.height;
+    cv.getContext("2d").drawImage(src, 0, 0);
+    $("crop").hidden = previewing;
+    if (!previewing) placeCrop();
+  }
+  function placeCrop() {
+    const c = pages[cur].crop, el = $("crop");
+    el.style.left = c.x * 100 + "%"; el.style.top = c.y * 100 + "%";
+    el.style.width = c.w * 100 + "%"; el.style.height = c.h * 100 + "%";
+  }
+
+  let drag = null;
+  $("crop").addEventListener("pointerdown", e => {
+    const h = e.target.dataset.h || "move";
+    const r = $("stage").getBoundingClientRect();
+    drag = { h, sx: e.clientX, sy: e.clientY, r, c: { ...pages[cur].crop } };
+    $("crop").setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  $("crop").addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.sx) / drag.r.width, dy = (e.clientY - drag.sy) / drag.r.height;
+    const o = drag.c, n = { ...o }, min = 0.06;
+    if (drag.h === "move") {
+      n.x = clamp(o.x + dx, 0, 1 - o.w); n.y = clamp(o.y + dy, 0, 1 - o.h);
+    } else {
+      if (drag.h.includes("w")) { n.x = clamp(o.x + dx, 0, o.x + o.w - min); n.w = o.x + o.w - n.x; }
+      if (drag.h.includes("e")) { n.w = clamp(o.w + dx, min, 1 - o.x); }
+      if (drag.h.includes("n")) { n.y = clamp(o.y + dy, 0, o.y + o.h - min); n.h = o.y + o.h - n.y; }
+      if (drag.h.includes("s")) { n.h = clamp(o.h + dy, min, 1 - o.y); }
+    }
+    pages[cur].crop = n; placeCrop();
+  });
+  const endDrag = () => { drag = null; };
+  $("crop").addEventListener("pointerup", endDrag);
+  $("crop").addEventListener("pointercancel", endDrag);
+
+  // ---------- controls ----------
+  $("camIn").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+  $("fileIn").onchange = e => { addFiles(e.target.files); e.target.value = ""; };
+
+  $("rotL").onclick = () => rot(-1); $("rotR").onclick = () => rot(1);
+  function rot(d) {
+    if (cur < 0) return;
+    const p = pages[cur]; p.rot = (p.rot + d + 4) % 4;
+    p.crop = p.auto ? (detectCrop(p) || FULL()) : FULL();
+    drawStage();
+  }
+
+  $("filter").onchange = e => { pages[cur].filter = e.target.value; if (previewing) drawStage(); };
+  let timer = null;
+  const later = fn => { clearTimeout(timer); timer = setTimeout(fn, 120); };
+  $("bri").oninput = e => { pages[cur].bri = +e.target.value; $("briV").textContent = e.target.value; if (previewing) later(drawStage); };
+  $("con").oninput = e => { pages[cur].con = +e.target.value; $("conV").textContent = e.target.value; if (previewing) later(drawStage); };
+  $("sharp").oninput = e => { pages[cur].sharp = +e.target.value; $("sharpV").textContent = e.target.value; if (previewing) later(drawStage); };
+  $("tilt").oninput = e => {
+    const p = pages[cur]; p.angle = +e.target.value; $("tiltV").textContent = p.angle.toFixed(1) + "°";
+    p.crop = FULL(); later(drawStage);
+  };
+  $("tilt").onchange = () => {
+    const p = pages[cur];
+    if (p.auto) { p.crop = detectCrop(p) || FULL(); drawStage(); }
+  };
+  $("previewBtn").onclick = () => {
+    previewing = !previewing;
+    $("previewBtn").textContent = t(previewing ? "prevOff" : "prevOn");
+    drawStage();
+  };
+  $("delBtn").onclick = () => { if (cur < 0) return; URL.revokeObjectURL(pages[cur].url); pages.splice(cur, 1); select(cur); };
+  const move = d => {
+    const j = cur + d; if (cur < 0 || j < 0 || j >= pages.length) return;
+    [pages[cur], pages[j]] = [pages[j], pages[cur]]; select(j);
+  };
+  $("leftBtn").onclick = () => move(-1); $("rightBtn").onclick = () => move(1);
+  $("txt").oninput = e => { if (cur >= 0) pages[cur].text = e.target.value; };
+
+  // =====================================================================
+  //  OCR (Tesseract.js, runs in the browser)
+  // =====================================================================
+  let worker = null, workerLang = "", stopped = false;
+  const cleanThaiLao = s => s
+    .replace(/([\u0E00-\u0E7F])[ \t]+(?=[\u0E00-\u0E7F])/g, "$1")
+    .replace(/([\u0E80-\u0EFF])[ \t]+(?=[\u0E80-\u0EFF])/g, "$1")
+    .replace(/\n{3,}/g, "\n\n").trim();
+
+  async function getWorker(lang, onProgress) {
+    if (worker && workerLang === lang) return worker;
+    if (worker) { await worker.terminate(); worker = null; }
+    worker = await Tesseract.createWorker(lang, 1, { logger: m => onProgress && onProgress(m) });
+    workerLang = lang;
+    return worker;
+  }
+
+  async function readPage(i, k, n) {
+    const p = pages[i];
+    p.state = "busy"; renderStrip();
+    const label = t("pageN", { n: i + 1 }) + " (" + (k + 1) + "/" + n + ")";
+    const w = await getWorker($("lang").value, m => {
+      const pc = m.progress != null ? " " + Math.round(m.progress * 100) + "%" : "";
+      const what = /load|init/.test(m.status) ? t("loadingLang") : t("reading");
+      setStatus($("ocrStatus"), what + " " + label + pc);
+    });
+    const { data } = await w.recognize(output(p, 2200));
+    if (stopped) { p.state = ""; renderStrip(); return; }
+    p.text = cleanThaiLao(data.text || "") || t("noTextFound");
+    p.state = "done";
+    if (i === cur) $("txt").value = p.text;
+    renderStrip();
+  }
+
+  async function runOcr(indices) {
+    if (!window.Tesseract || !indices.length) return;
+    stopped = false;
+    $("stopBtn").hidden = false; ["ocrOne", "ocrAll"].forEach(id => $(id).disabled = true);
+    try {
+      for (let k = 0; k < indices.length && !stopped; k++) await readPage(indices[k], k, indices.length);
+      setStatus($("ocrStatus"), stopped ? t("stopped") : t("readDone"), stopped ? "" : "ok");
+    } catch (e) {
+      pages.forEach(p => { if (p.state === "busy") p.state = stopped ? "" : "fail"; }); renderStrip();
+      if (stopped) setStatus($("ocrStatus"), t("stopped"));
+      else setStatus($("ocrStatus"), t("readFail"), "err");
+    } finally {
+      $("stopBtn").hidden = true; ["ocrOne", "ocrAll"].forEach(id => $(id).disabled = false);
+    }
+  }
+  $("ocrOne").onclick = () => runOcr([cur]);
+  $("ocrAll").onclick = () => runOcr(pages.map((_, i) => i));
+  $("stopBtn").onclick = async () => {
+    stopped = true;
+    if (worker) { const w = worker; worker = null; workerLang = ""; try { await w.terminate(); } catch (e) {} }
+  };
+
+  // ---------- pattern search (no AI) ----------
+  const toArabic = s => s.replace(/[\u0ED0-\u0ED9]/g, c => String(c.charCodeAt(0) - 0x0ED0))
+                         .replace(/[\u0E50-\u0E59]/g, c => String(c.charCodeAt(0) - 0x0E50));
+  $("fieldBtn").onclick = () => {
+    const all = pages.map(p => p.text || "").join("\n");
+    if (!all.trim()) { setStatus($("fieldStatus"), t("noTextYet"), "err"); return; }
+    const txt = toArabic(all), found = [];
+    const add = (key, re) => { const s = new Set(); (txt.match(re) || []).forEach(v => s.add(v.trim())); s.forEach(v => found.push([key, v])); };
+    add("fDate", /\b\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}\b/g);
+    add("fPhone", /(?:\+?856[\s-]?)?(?:20|30)[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{3}\b|\b0\d{1,2}[\s-]?\d{3,4}[\s-]?\d{4}\b/g);
+    add("fAmount", /\b\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?\b|\b\d+\.\d{2}\b/g);
+    add("fDocNo", /\b[A-Za-z]{1,6}[\/\-]?\d{3,}(?:[\/\-]\d+)*\b/g);
+    const rows = $("fieldRows"); rows.textContent = "";
+    found.forEach(([k, v]) => {
+      const tr = document.createElement("tr"); tr.dataset.key = k;
+      const th = document.createElement("th"); th.textContent = t(k);
+      const td = document.createElement("td"); td.textContent = v; td.contentEditable = "true";
+      tr.append(th, td); rows.append(tr);
+    });
+    $("fieldOut").hidden = !found.length;
+    setStatus($("fieldStatus"), found.length ? t("found", { n: found.length }) : t("notFound"), found.length ? "ok" : "");
+  };
+
+  // =====================================================================
+  //  Export
+  // =====================================================================
+  function save(filename, data, statusEl) {
+    try {
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setStatus(statusEl, t("saved", { f: filename }), "ok");
+    } catch (e) { setStatus(statusEl, t("saveFail"), "err"); }
+  }
+  const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, "0"); return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + "-" + z(d.getHours()) + z(d.getMinutes()); };
+
+  $("pdfBtn").onclick = async () => {
+    if (!window.jspdf) { setStatus($("pdfStatus"), t("pdfLib"), "err"); return; }
+    $("pdfBtn").disabled = true; setStatus($("pdfStatus"), t("pdfBuilding"));
+    try {
+      const { jsPDF } = window.jspdf;
+      let pdf = null;
+      for (let i = 0; i < pages.length; i++) {
+        const c = output(pages[i], 2200);
+        const landscape = c.width > c.height;
+        if (!pdf) pdf = new jsPDF({ orientation: landscape ? "l" : "p", unit: "mm", format: "a4" });
+        else pdf.addPage("a4", landscape ? "l" : "p");
+        const W = pdf.internal.pageSize.getWidth(), H = pdf.internal.pageSize.getHeight();
+        const s = Math.min(W / c.width, H / c.height), w = c.width * s, h = c.height * s;
+        pdf.addImage(c.toDataURL("image/jpeg", 0.85), "JPEG", (W - w) / 2, (H - h) / 2, w, h);
+        await new Promise(r => setTimeout(r, 0));
+      }
+      save("scan-" + stamp() + ".pdf", pdf.output("blob"), $("pdfStatus"));
+    } catch (e) { setStatus($("pdfStatus"), t("pdfFail"), "err"); }
+    finally { $("pdfBtn").disabled = false; }
+  };
+
+  $("txtBtn").onclick = () => {
+    const all = pages.length > 1
+      ? pages.map((p, i) => "--- " + t("pageN", { n: i + 1 }) + " ---\n" + p.text).join("\n\n")
+      : (pages[0] ? pages[0].text : "");
+    if (!all.trim()) { setStatus($("ocrStatus"), t("noTextSave"), "err"); return; }
+    save("scan-" + stamp() + ".txt", "\ufeff" + all, $("ocrStatus"));
+  };
+  $("copyBtn").onclick = async () => {
+    const v = $("txt").value;
+    try { await navigator.clipboard.writeText(v); setStatus($("ocrStatus"), t("copied"), "ok"); }
+    catch (e) {
+      $("txt").select();
+      try { document.execCommand("copy"); setStatus($("ocrStatus"), t("copied"), "ok"); }
+      catch (_) { setStatus($("ocrStatus"), t("copyFail"), "err"); }
+    }
+  };
+  $("csvBtn").onclick = () => {
+    const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+    const lines = [[t("colType"), t("colValue")].map(q).join(",")];
+    [...$("fieldRows").children].forEach(tr => lines.push([tr.children[0].textContent, tr.children[1].textContent].map(q).join(",")));
+    save("fields-" + stamp() + ".csv", "\ufeff" + lines.join("\r\n"), $("fieldStatus"));
+  };
+
+  // =====================================================================
+  //  Init
+  // =====================================================================
+  ui = detectUi();
+  $("uiLang").value = ui;
+  // default OCR language follows the app language the first time
+  $("lang").value = ui === "lo" ? "lao+eng" : ui === "en" ? "eng" : "tha+eng";
+  $("uiLang").onchange = e => {
+    ui = e.target.value;
+    try { localStorage.setItem("scanner-ui", ui); } catch (_) {}
+    applyI18n();
+    ["editStatus", "ocrStatus", "fieldStatus", "pdfStatus"].forEach(id => setStatus($(id), ""));
+    [...$("fieldRows").children].forEach(tr => { tr.children[0].textContent = t(tr.dataset.key); });
+  };
+  applyI18n();
+  initCaps();
+})();
+</script>
+</body>
+</html>
